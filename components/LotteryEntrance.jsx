@@ -17,7 +17,8 @@ export default function LotteryEntrance() {
   const [entranceFee, setEntranceFee] = useState("0");
   const [numberOfPlayers, setNumberOfPlayers] = useState("0");
   const [recentWinner, setRecentWinner] = useState("0");
-  const [raffleState, setRaffleState] = useState("0");
+  const [raffleState, setRaffleState] = useState("0"); // 0 - open, 1 - closed
+  const [intervalCheck, setIntervalCheck] = useState(0);
 
   // notification hook
   const dispatch = useNotification();
@@ -73,6 +74,7 @@ export default function LotteryEntrance() {
     const recentWinnerFromCall = await getRecentWinner();
     setEntranceFee(entranceFeeFromCall);
     setNumberOfPlayers(numPlayersFromCall);
+    setRaffleState(raffleStateFromCall);
     setRecentWinner(recentWinnerFromCall);
   }
 
@@ -96,6 +98,11 @@ export default function LotteryEntrance() {
     }
   }
 
+  const updateIntervalCheck = () => {
+    if ( intervalCheck > 100 ) setIntervalCheck(0);
+    setIntervalCheck(intervalCheck + 1);
+  }
+
   // update UI when web3 is enabled
   useEffect(() => {
     if (isWeb3Enabled) {
@@ -103,12 +110,28 @@ export default function LotteryEntrance() {
     }
   }, [isWeb3Enabled]);
 
+  // periodically check for raffle state
+  useEffect(() => {
+    let interval = 0;
+
+    if( isWeb3Enabled ) { // only check if web3 is enabled
+      interval = setInterval(() => {
+        console.log("checking for raffle state...");
+        updateIntervalCheck();
+        updateUIValues();
+      }, 1000); // check every second
+    }
+
+    return () => clearInterval(interval);
+  }, []);
+
   return (
     <div className="p-5">
       <h1 className="py-4 px-4 font-bold text-3xl">Lottery</h1>
       {raffleAddress ? (
         <>
           <button
+            data-check={intervalCheck}
             className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded ml-auto"
             onClick={async () =>
               await enterRaffle({
@@ -116,7 +139,7 @@ export default function LotteryEntrance() {
                 onError: (error) => console.log(error),
               })
             }
-            disabled={isLoading || isFetching}
+            disabled={isLoading || isFetching || raffleState === "1"}
           >
             {isLoading || isFetching ? (
               <div className="animate-spin spinner-border h-8 w-8 border-b-2 rounded-full"></div>
@@ -124,9 +147,10 @@ export default function LotteryEntrance() {
               "Enter Raffle"
             )}
           </button>
+          <div>Raffle is: { raffleState == '0' ? 'open' : 'closed' }</div>
           <div>Entrance Fee: {ethers.utils.formatUnits(entranceFee, "ether")} ETH</div>
           <div>The current number of players is: {numberOfPlayers}</div>
-          <div>The most previous winner was: {recentWinner}</div>
+          <div>The recent winner was: {recentWinner}</div>
           <div>Raffle Address: {raffleAddress}</div>
         </>
       ) : (
